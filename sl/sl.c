@@ -51,8 +51,8 @@ sl_init(struct sorted_list *sl)
  * Add data
  */
 static int
-_add_data(struct sorted_list_entry **head, key_t key, key_t mask, int priority,
-          void *data)
+_add_data(struct sorted_list_entry **head, acl_key_t key, acl_key_t mask,
+          int priority, void *data)
 {
     struct sorted_list_entry *ent;
     struct sorted_list_entry *cur;
@@ -90,7 +90,7 @@ _add_data(struct sorted_list_entry **head, key_t key, key_t mask, int priority,
     return 0;
 }
 int
-sl_add_data(struct sorted_list *sl, key_t key, key_t mask, int priority,
+sl_add_data(struct sorted_list *sl, acl_key_t key, acl_key_t mask, int priority,
             void *data)
 {
     return _add_data(&sl->head, key, mask, priority, data);
@@ -100,7 +100,7 @@ sl_add_data(struct sorted_list *sl, key_t key, key_t mask, int priority,
  * Lookup
  */
 void *
-sl_lookup(struct sorted_list *sl, key_t key)
+sl_lookup(struct sorted_list *sl, acl_key_t key)
 {
     struct sorted_list_entry *ent;
 

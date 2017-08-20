@@ -29,7 +29,7 @@
 #define ACL_KEY_LENGTH 512
 
 /* 512-bit key */
-typedef struct { uint64_t a[8]; } key_t;
+typedef struct { uint64_t a[8]; } acl_key_t;
 
 #define KEY_MASK(key, mask) do {              \
         (key).a[0] &= ~(mask).a[0];            \

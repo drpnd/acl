@@ -32,7 +32,7 @@ test_true(void)
 {
     struct sorted_list sl;
     int ret;
-    key_t keys[] = {
+    acl_key_t keys[] = {
         {{0x5, 0, 0, 0, 0, 0}}, {{0, 0, 0, 0, 0, 0}},
         {{0x3, 0, 0, 0, 0, 0}}, {{0, 0, 0, 0, 0, 0}},
         {{0x0, 0, 0, 0, 0, 0}}, {{1, 0, 0, 0, 0, 0}},
@@ -50,7 +50,7 @@ test_true(void)
         {{0xcbb27f00ULL, 0, 0, 0, 0, 0}}, {{0xff, 0, 0, 0, 0, 0}},
         {{0xcbb28000ULL, 0, 0, 0, 0, 0}}, {{0x7fff, 0, 0, 0, 0, 0}},
     };
-    key_t tests[] = {
+    acl_key_t tests[] = {
         {{0xcbb24001ULL, 0, 0, 0, 0, 0}},
         {{0xcbb26001ULL, 0, 0, 0, 0, 0}},
         {{0xcbb28701ULL, 0, 0, 0, 0, 0}},
@@ -156,6 +156,128 @@ test_true(void)
     return 0;
 }
 
+/*
+ * Performance test with a routing table
+ */
+#include <arpa/inet.h>
+#include <netinet/in.h>
+static int
+test_lookup_performance(void)
+{
+    struct sorted_list sl;
+    FILE *fp;
+    char buf[4096];
+    int ret;
+    acl_key_t addr1 = {{0, 0, 0, 0, 0, 0}};
+    acl_key_t mask = {{0, 0, 0, 0, 0, 0}};
+    uint64_t addr2;
+    uint64_t i;
+    char buf1[256];
+    char buf2[256];
+    struct in6_addr prefix;
+    int prefixlen;
+    struct in6_addr nexthop;
+
+    /* Initialize */
+    sl_init(&sl);
+
+    /* Load from the linx file */
+    fp = fopen("tests/rviews-inet6-wide-rib.20170820.1200.txt", "r");
+    if ( NULL == fp ) {
+        return -1;
+    }
+
+    /* Load the full route */
+    i = 0;
+    while ( !feof(fp) ) {
+        if ( !fgets(buf, sizeof(buf), fp) ) {
+            continue;
+        }
+
+        ret = sscanf(buf, "%255[^/]/%d %255s", buf1, &prefixlen, buf2);
+        if ( ret < 0 ) {
+            return -1;
+        }
+
+        /* Prefix */
+        ret = inet_pton(AF_INET6, buf1, &prefix);
+        if ( ret != 1 ) {
+            return -1;
+        }
+        /* Nexthop */
+        ret = inet_pton(AF_INET6, buf2, &nexthop);
+        if ( ret != 1 ) {
+            return -1;
+        }
+
+        /* Convert to uint64_t */
+        addr1.a[0] = ((uint64_t)prefix.s6_addr[0] << 56)
+            + ((uint64_t)prefix.s6_addr[1] << 48)
+            + ((uint64_t)prefix.s6_addr[2] << 40)
+            + ((uint64_t)prefix.s6_addr[3] << 32)
+            + ((uint64_t)prefix.s6_addr[4] << 24)
+            + ((uint64_t)prefix.s6_addr[5] << 16)
+            + ((uint64_t)prefix.s6_addr[6] << 8)
+            + (uint64_t)prefix.s6_addr[7];
+        addr1.a[1] = ((uint64_t)prefix.s6_addr[8] << 56)
+            + ((uint64_t)prefix.s6_addr[9] << 48)
+            + ((uint64_t)prefix.s6_addr[10] << 40)
+            + ((uint64_t)prefix.s6_addr[11] << 32)
+            + ((uint64_t)prefix.s6_addr[12] << 24)
+            + ((uint64_t)prefix.s6_addr[13] << 16)
+            + ((uint64_t)prefix.s6_addr[14] << 8)
+            + (uint64_t)prefix.s6_addr[15];
+        addr2 = ((uint64_t)nexthop.s6_addr[8] << 56)
+            + ((uint64_t)nexthop.s6_addr[9] << 48)
+            + ((uint64_t)nexthop.s6_addr[10] << 40)
+            + ((uint64_t)nexthop.s6_addr[11] << 32)
+            + ((uint64_t)nexthop.s6_addr[12] << 24)
+            + ((uint64_t)nexthop.s6_addr[13] << 16)
+            + ((uint64_t)nexthop.s6_addr[14] << 8)
+            + (uint64_t)nexthop.s6_addr[15];
+
+        if ( prefixlen == 128 ) {
+            mask.a[0] = 0xffffffffffffffffULL;
+            mask.a[1] = 0xffffffffffffffffULL;
+        } else if ( prefixlen >= 64 ) {
+            mask.a[0] = 0xffffffffffffffffULL;
+            mask.a[1] = (1ULL << (128 - prefixlen)) - 1;
+        } else {
+            mask.a[0] = (1ULL << (64 - prefixlen)) - 1;
+            mask.a[1] = 0;
+        }
+
+        /* Add an entry */
+        ret = sl_add_data(&sl, addr1, mask, prefixlen, (void *)addr2);
+        if ( ret < 0 ) {
+            return -1;
+        }
+        i++;
+    }
+
+    /* Close */
+    fclose(fp);
+
+    double t0, t1;
+    uint64_t x = 0;
+    acl_key_t tmp = {{0, 0, 0, 0, 0, 0}};
+    t0 = getmicrotime();
+    for ( i = 0; i < 0x10000ULL; i++ ) {
+        tmp.a[0] = (0x2000ULL<<48)
+            | (((uint64_t)xor128() << 32) & 0x0fffffffffffffffULL)
+            | xor128();
+        x ^= (uint64_t)sl_lookup(&sl, tmp);
+    }
+    t1 = getmicrotime();
+    printf("@@@ Performance: %.6lf sec: %.3lf lookup/sec, %llx) @@@",
+           t1 - t0, i / (t1 - t0), x);
+
+    return 0;
+}
+
+/*
+ * Main routine
+ */
 int
 main(int argc, const char *const argv[])
 {
@@ -165,8 +287,9 @@ main(int argc, const char *const argv[])
 
     /* Run tests */
     TEST_FUNC("true", test_true, ret);
+    TEST_FUNC("performance", test_lookup_performance, ret);
 
-    return 0;
+    return ret;
 }
 
 /*

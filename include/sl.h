@@ -30,8 +30,8 @@
  * An entry of the sorted list
  */
 struct sorted_list_entry {
-    key_t addr;
-    key_t mask;
+    acl_key_t addr;
+    acl_key_t mask;
     int priority;
     void *data;
     struct sorted_list_entry *next;
@@ -50,8 +50,8 @@ extern "C" {
 #endif
 
     struct sorted_list * sl_init(struct sorted_list *);
-    int sl_add_data(struct sorted_list *, key_t, key_t, int, void *);
-    void * sl_lookup(struct sorted_list *, key_t);
+    int sl_add_data(struct sorted_list *, acl_key_t, acl_key_t, int, void *);
+    void * sl_lookup(struct sorted_list *, acl_key_t);
 
 #ifdef __cplusplus
 }
