@@ -32,6 +32,7 @@
 #define TEST_FUNC(str, func, ret)                \
     do {                                         \
         printf("%s: ", str);                     \
+        fflush(stdout);                          \
         if ( 0 == func() ) {                     \
             printf("passed");                    \
         } else {                                 \

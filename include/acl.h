@@ -67,19 +67,17 @@ typedef struct { uint64_t a[8]; } acl_key_t;
      && (x).a[3] == (y).a[3] && (x).a[4] == (y).a[4] && (x).a[5] == (y).a[5] \
      && (x).a[6] == (y).a[6] && (x).a[7] == (y).a[7])
 
-#define EXTRACT(key, bit)      (((key).a[(bit) >> 6] >> ((bit) & 0x3f)) & 1)
-#define EXTRACTn(key, bit, n)  (                       \
-        ((*((uint32_t *)(((uint16_t *)((key).a)) + ((bit) >> 4))))      \
-         >> ((bit) & 0xf))                                              \
-        & ((1 << (n)) - 1)                                              \
-        )
+#define BT(key, bit)                                                    \
+    ( (key).a[(bit) >> 6] & (0x8000000000000000ULL >> ((bit) & 0x3f)) )
+#define BTS(key, bit) do {                                              \
+        (key).a[(bit) >> 6] |= (0x8000000000000000ULL >> ((bit) & 0x3f)); \
+    } while ( 0 )
+#define BTC(key, bit) do {                                              \
+        (key).a[(bit) >> 6] &= ~(0x8000000000000000ULL >> ((bit) & 0x3f)); \
+    } while ( 0 )
 
-#define BTS(key, bit) do {                                 \
-        (key).a[(bit) >> 6] |= (1ULL << ((bit) & 0x3f));   \
-    } while ( 0 )
-#define BTC(key, bit) do {                             \
-        (key).a[(bit) >> 6] &= ~(1ULL << ((bit) & 0x3f));  \
-    } while ( 0 )
+
+#define EXTRACT(key, bit)      (((key).a[(bit) >> 6] >> ((bit) & 0x3f)) & 1)
 
 #endif
 
