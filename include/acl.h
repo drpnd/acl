@@ -76,8 +76,8 @@ typedef struct { uint64_t a[8]; } acl_key_t;
         (key).a[(bit) >> 6] &= ~(0x8000000000000000ULL >> ((bit) & 0x3f)); \
     } while ( 0 )
 
-
-#define EXTRACT(key, bit)      (((key).a[(bit) >> 6] >> ((bit) & 0x3f)) & 1)
+#define EXTRACT(key, bit)                                   \
+    (((key).a[(bit) >> 6] >> (0x3f - ((bit) & 0x3f))) & 1)
 
 #endif
 

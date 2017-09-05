@@ -60,25 +60,35 @@ _add_data(struct patricia_node **r, acl_key_t key, int prefixlen, void *data)
     struct patricia_node *x;
     int bit;
 
+    bit = 0;
+
     /* Allocate memory for the new node */
     n = malloc(sizeof(struct patricia_node));
     if ( NULL == n ) {
         /* Memory alloation error */
         return -1;
     }
-    n->bit = prefixlen - 1;
+    n->bit = 0;
     n->left = NULL;
     n->right = NULL;
     n->key = key;
     n->prefixlen = prefixlen;
     n->data = data;
 
+    /* Replace the root with the new node if no root node is specified. */
+    if ( NULL == *r ) {
+        n->bit = prefixlen - 1;
+        *r = n;
+
+        return 0;
+    }
+
     /* Parent */
     p = NULL;
     t = *r;
 
-    /* Traverse the trie */
-    while ( NULL != t && (NULL == p || p->bit < t->bit) ) {
+    /* Traverse the trie to find the insertion point */
+    do {
         p = t;
         if ( BT(key, t->bit) ) {
             /* Right */
@@ -87,19 +97,18 @@ _add_data(struct patricia_node **r, acl_key_t key, int prefixlen, void *data)
             /* Left */
             t = t->left;
         }
-    }
+    } while ( NULL != t && p->bit < t->bit );
 
     if ( NULL == t ) {
-        /* Reached at the leaf but the insertion point is not found. */
-        if ( NULL == p ) {
-            /* Replace the root with the new one */
-            *r = n;
+        /* Reached at the leaf, then determine the insertion point */
+        while ( EXTRACT(p->key, bit) == EXTRACT(key, bit) ) {
+            bit++;
+        }
 
-            return 0;
-        } else if ( n->bit >= p->bit ) {
+        if ( bit >= p->bit ) {
             /* Leaf node */
             t = n;
-            if ( BT(n->key, n->bit) ) {
+            if ( BT(key, bit) ) {
                 /* Right */
                 t->right = t;
             } else {
@@ -107,7 +116,7 @@ _add_data(struct patricia_node **r, acl_key_t key, int prefixlen, void *data)
                 t->left = t;
             }
             /* Add as a child of the parent node */
-            if ( BT(n->key, p->bit) ) {
+            if ( BT(key, p->bit) ) {
                 /* Right */
                 p->right = t;
             } else {
@@ -122,63 +131,33 @@ _add_data(struct patricia_node **r, acl_key_t key, int prefixlen, void *data)
         }
     }
 
-    if ( KEY_CMP(n->key, t->key) && n->prefixlen == t->prefixlen ) {
+    if ( KEY_CMP(key, t->key) && prefixlen == t->prefixlen ) {
         /* Already exists */
+        free(n);
         return -1;
     }
 
-
-
-
-#if 0
-    bit = 0;
-
-    if ( NULL == *n ) {
-        /* Allocate memory for the new node */
-        *n = malloc(sizeof(struct patricia_node));
-        if ( NULL == *n ) {
-            /* Memory allocation error */
-            return -1;
-        }
-        (*n)->bit = bit;
-        (*n)->left = NULL;
-        (*n)->right = NULL;
-        (*n)->key = key;
-        (*n)->prefixlen = prefixlen;
-        (*n)->data = data;
-
-        if ( BT(key, bit) ) {
-            (*n)->right = *n;
-        } else {
-            (*n)->left = *n;
-        }
-
-        return 0;
+    while ( EXTRACT(t->key, bit) == EXTRACT(key, bit) ) {
+        bit++;
     }
 
-    /* Parent */
     p = NULL;
-    t = *n;
-
-    /* Traverse the trie */
-    while ( NULL == p || p->bit < t->bit ) {
-        p = t;
-        if ( BT(key, t->bit) ) {
-            /* Right */
-            t = t->right;
+    x = *r;
+    do {
+        p = x;
+        if ( BT(key, x->bit) ) {
+            x = x->right;
         } else {
-            t = t->left;
+            x = x->left;
         }
-        if ( NULL == t ) {
-            /* Reached at the leaf */
-            break;
-        }
+    } while ( NULL != x || (p->bit < x->bit && x->bit < bit) );
+
+    if ( NULL == x ) {
+        /* Must not be reached here */
+        free(n);
+        return -1;
     }
 
-    if ( NULL == t ) {
-        
-    }
-#endif
     return 0;
 }
 int
@@ -197,42 +176,18 @@ patricia_add_data(struct patricia *pat, acl_key_t key, int prefixlen,
  * Lookup
  */
 void *
-_lookup(struct radix_tree_node *cur, struct radix_tree_node *cand,
-        acl_key_t key, int depth)
+patricia_lookup(struct patricia *pat, acl_key_t key)
 {
-    if ( NULL == cur ) {
-        /* Return the candidate node as the longest prefix matching result */
-        return NULL != cand ? cand->data : NULL;
-    }
-
-    if ( cur->valid ) {
-        /* Update thte candidate return value according to the longest prefix
-           matching policy */
-        cand = cur;
-    }
-
-    /* Check the bit corresponding to the depth */
-    if ( BT(key, depth) ) {
-        /* Right node */
-        return _lookup(cur->right, cand, key, depth + 1);
-    } else {
-        /* Left node */
-        return _lookup(cur->left, cand, key, depth + 1);
-    }
-}
-void *
-radix_lookup(struct radix_tree *radix, acl_key_t key)
-{
-    return _lookup(radix->root, NULL, key, 0);
+    return NULL;
 }
 
 /*
  * Release the instance
  */
 void
-radix_release(struct radix_tree *radix)
+patricia_release(struct patricia *pat)
 {
-    free(radix);
+    free(pat);
 }
 
 /*
