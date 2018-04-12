@@ -118,7 +118,7 @@ test_lookup_performance(void)
     uint64_t x = 0;
     acl_key_t tmp = {{0, 0, 0, 0, 0, 0}};
     t0 = getmicrotime();
-    for ( i = 0; i < 0x10000ULL; i++ ) {
+    for ( i = 0; i < 0x10000000ULL; i++ ) {
         tmp.a[0] = (0x2000ULL<<48)
             | (((uint64_t)xor128() << 32) & 0x0fffffffffffffffULL)
             | xor128();

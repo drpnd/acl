@@ -44,8 +44,17 @@ add_executable(test_acl_sl tests/sl.c sl/sl.c)
 # radix tree
 add_executable(test_acl_radix tests/radix.c radix/radix.c)
 
-# PATRICIA trie
-add_executable(test_acl_patricia tests/patricia.c patricia/patricia.c)
+# path-compressed trie
+#add_executable(test_acl_pctrie tests/pctrie.c pctrie/pctrie.c)
 
 # cross validation
-add_executable(test_acl_cross tests/cross.c sl/sl.c radix/radix.c)
+add_executable(test_acl_cross tests/cross.c sl/sl.c radix/radix.c
+  #pctrie/pctrie.c
+  )
+
+# testing
+enable_testing()
+#add_test(test_acl_sl ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/test_acl_sl)
+#add_test(test_acl_radix ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/test_acl_radix)
+#add_test(test_acl_pctrie ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/test_acl_pctrie)
+add_test(test_acl_cross ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/test_acl_cross)
