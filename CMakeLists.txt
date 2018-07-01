@@ -38,6 +38,9 @@ set (acl_VERSION "current-${BUILD_DATETIME}")
 #set (acl_VERSION_MINOR "1")
 #set (acl_VERSION_PATCH "0")
 
+# acl2tcam
+add_executable(acl2tcam tools/acl2tcam.c)
+
 # sourted list
 add_executable(test_acl_sl tests/sl.c sl/sl.c)
 
