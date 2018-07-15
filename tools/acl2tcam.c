@@ -167,20 +167,17 @@ range2mask(acl_port_range_t range)
     uint16_t y;
     uint16_t prefix;
     uint16_t mask;
-    int msb;
 
     for ( b = 0; b < 16; b++ ) {
         x = range.lb & (1 << (15 - b));
         y = range.ub & (1 << (15 - b));
         if ( x != y ) {
             /* The most significant different bit */
-            msb = b;
             break;
         }
     }
     mask = (1 << (16 - b)) - 1;
     prefix = range.lb & ~mask;
-    //printf(">>> %x %x %x %x\n", range.lb, range.ub, prefix, mask);
 
     range2mask_rec(range, prefix, mask, b);
 }
