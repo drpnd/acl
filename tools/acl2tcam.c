@@ -33,14 +33,17 @@ typedef enum {
 
 typedef enum {
     ACL_IP,
+    ACL_ICMP,
     ACL_TCP,
     ACL_UDP,
 } acl_proto_t;
 
+#define ACL_ESTABLISHED     (1 << 0)
+
 typedef struct {
     uint32_t prefix;
     uint32_t mask;
-} ack_ipv4_mask_t;
+} acl_ipv4_mask_t;
 typedef struct {
     uint16_t lb;
     uint16_t ub;
@@ -50,13 +53,15 @@ typedef struct {
     acl_action_t action;
     acl_proto_t proto;
     union {
-        ack_ipv4_mask_t ip4;
+        acl_ipv4_mask_t ip4;
     } saddr;
     acl_port_range_t sport;
     union {
-        ack_ipv4_mask_t ip4;
+        acl_ipv4_mask_t ip4;
     } daddr;
     acl_port_range_t dport;
+    int flags;
+    int priority;
 } acl_t;
 
 void
@@ -66,25 +71,98 @@ usage(const char *prog)
 }
 
 /*
+ * Parse IPv4 address
+ */
+static int
+_parse_ipv4addr(acl_ipv4_mask_t *mask, char **tok, const char *sep,
+                char **saveptr)
+{
+    int octets[4];
+    int prefixlen;
+
+    if ( NULL == *tok ) {
+        *tok = strtok_r(NULL, sep, saveptr);
+        if ( NULL == *tok ) {
+            return -1;
+        }
+    }
+    sscanf(*tok, "%d.%d.%d.%d/%d", &octets[0], &octets[1], &octets[2],
+           &octets[3], &prefixlen);
+
+    mask->prefix = (octets[0] << 24) | (octets[1] << 16) | (octets[2] << 8)
+        | (octets[3]);
+    mask->mask = ~((1ULL << (32 - prefixlen)) - 1);
+
+    *tok = NULL;
+
+    return 0;
+}
+
+/*
+ * Parse port
+ */
+static int
+_parse_port(acl_port_range_t *range, char **tok, const char *sep,
+            char **saveptr)
+{
+    int port;
+
+    if ( NULL == *tok ) {
+        *tok = strtok_r(NULL, sep, saveptr);
+        if ( NULL == *tok ) {
+            range->lb = 0;
+            range->ub = 65535;
+            return 0;
+        }
+    }
+    if ( 0 == strcasecmp(*tok, "eq") ) {
+        /* Port */
+        *tok = strtok_r(NULL, sep, saveptr);
+        port = atoi(*tok);
+        range->lb = port;
+        range->ub = port;
+        *tok = NULL;
+    } else if ( 0 == strcasecmp(*tok, "lt") ) {
+        /* Port */
+        *tok = strtok_r(NULL, sep, saveptr);
+        port = atoi(*tok);
+        range->lb = 0;
+        range->ub = port - 1;
+        *tok = NULL;
+    } else if ( 0 == strcasecmp(*tok, "gt") ) {
+        /* Port */
+        *tok = strtok_r(NULL, sep, saveptr);
+        port = atoi(*tok);
+        range->lb = port + 1;
+        range->ub = 65535;
+        *tok = NULL;
+    } else {
+        range->lb = 0;
+        range->ub = 65535;
+    }
+
+    return 0;
+}
+
+/*
  * Parse an ACL line
  */
 int
-parse_line(char *buf)
+parse_line(acl_t *acl, char *buf, int lineno)
 {
     char *saveptr;
     char *action;
     char *proto;
-    char *src;
-    char *dst;
+    char *tok;
     const char *sep = " \t";
-    acl_t *acl;
-    acl = alloca(sizeof(acl_t));
+    int ret;
 
     /* Trim the tail CR/LF */
-    while ( '\r' == buf[strlen(buf) - 1]
-            || '\n' == buf[strlen(buf) - 1]) {
+    while ( '\r' == buf[strlen(buf) - 1] || '\n' == buf[strlen(buf) - 1]) {
         buf[strlen(buf) - 1] = '\0';
     }
+
+    acl->priority = (1 << 30) - lineno;
 
     /* Action */
     action = strtok_r(buf, sep, &saveptr);
@@ -95,6 +173,7 @@ parse_line(char *buf)
     } else if ( 0 == strcasecmp(action, "deny") ) {
         acl->action = ACL_DENY;
     } else {
+        fprintf(stderr, "Unknown action: %s\n", action);
         return -1;
     }
 
@@ -108,17 +187,72 @@ parse_line(char *buf)
         acl->proto = ACL_TCP;
     } else if ( 0 == strcasecmp(proto, "udp") ) {
         acl->proto = ACL_UDP;
+    } else if ( 0 == strcasecmp(proto, "icmp") ) {
+        acl->proto = ACL_ICMP;
+    } else {
+        fprintf(stderr, "Unknown protocol: %s\n", proto);
+        return -1;
     }
 
+    /* Source IP address */
+    tok = NULL;
+    ret = _parse_ipv4addr(&acl->saddr.ip4, &tok, sep, &saveptr);
+    if ( ret < 0 ) {
+        return -1;
+    }
 
-    src = strtok_r(NULL, sep, &saveptr);
-    dst = strtok_r(NULL, sep, &saveptr);
+    /* Source port */
+    ret = _parse_port(&acl->sport, &tok, sep, &saveptr);
+    if ( ret < 0 ) {
+        return -1;
+    }
 
-    printf("%s %s %s %s\n", action, proto, src, dst);
+    /* Destination IP address */
+    ret = _parse_ipv4addr(&acl->daddr.ip4, &tok, sep, &saveptr);
+    if ( ret < 0 ) {
+        return -1;
+    }
 
-    return 0;
+    /* Destination port */
+    ret = _parse_port(&acl->dport, &tok, sep, &saveptr);
+    if ( ret < 0 ) {
+        return -1;
+    }
+
+    /* flags */
+    if ( NULL == tok ) {
+        tok = strtok_r(NULL, sep, &saveptr);
+    }
+    acl->flags = 0;
+    if ( NULL != tok ) {
+        if ( 0 == strcasecmp(tok, "established") ) {
+            acl->flags = ACL_ESTABLISHED;
+            tok = NULL;
+        } else if ( '#' == *tok )  {
+            /* Comment */
+            acl->flags = 0;
+            return 0;
+        } else {
+            fprintf(stderr, "Unknown flag: %s\n", tok);
+            return -1;
+        }
+    }
+
+    /* Rest of the tokens */
+    if ( NULL == tok ) {
+        tok = strtok_r(NULL, sep, &saveptr);
+    }
+    if ( NULL == tok ) {
+        return 0;
+    } else if ( '#' == *tok ) {
+        /* Comment */
+        return 0;
+    } else {
+        return -1;
+    }
 }
 
+void range2mask(acl_port_range_t);
 /*
  * Parse the specified ACL
  */
@@ -126,9 +260,21 @@ int
 parse(FILE *fp)
 {
     char buf[1024];
+    int lineno;
+    acl_t acl;
+    int ret;
 
+    lineno = 1;
     while ( NULL != fgets(buf, sizeof(buf), fp) ) {
-        parse_line(buf);
+        ret = parse_line(&acl, buf, lineno);
+        if ( ret < 0 ) {
+            fprintf(stderr, "Error at line %d\n", lineno);
+            exit(EXIT_FAILURE);
+        }
+        printf("%d: ", lineno);
+        range2mask(acl.sport);
+        range2mask(acl.dport);
+        lineno++;
     }
 
     return 0;
@@ -190,13 +336,6 @@ main(int argc, const char *const argv[])
 {
     const char *fname;
     FILE *fp;
-
-    acl_port_range_t range;
-    range.lb = 5;
-    range.ub = 27;
-    range2mask(range);
-
-    return 0;
 
     if ( argc < 2 ) {
         usage(argv[0]);
