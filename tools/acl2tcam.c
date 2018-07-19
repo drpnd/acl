@@ -41,6 +41,37 @@ typedef enum {
 #define ACL_ESTABLISHED     (1 << 0)
 
 typedef struct {
+    uint16_t fin:1;
+    uint16_t syn:1;
+    uint16_t rst:1;
+    uint16_t psh:1;
+    uint16_t ack:1;
+    uint16_t urg:1;
+    uint16_t ece:1;
+    uint16_t cwr:1;
+    uint16_t ns:1;
+    uint16_t rsvd:7;
+} tcp_flag;
+
+typedef struct {
+    uint8_t proto;
+    uint32_t saddr;
+    uint32_t daddr;
+    uint16_t sport;
+    uint16_t dport;
+    uint16_t flags;
+} __attribute__ ((packed)) acl_ipv4_entry_t;
+typedef struct {
+    uint8_t data[16];
+    uint8_t mask[16];
+} acl_tcam_entry_t;
+
+typedef struct {
+    int count;
+    uint16_t data[32];
+    uint16_t mask[32];
+} acl_port_range_masks_t;
+typedef struct {
     uint32_t prefix;
     uint32_t mask;
 } acl_ipv4_mask_t;
@@ -63,6 +94,9 @@ typedef struct {
     int flags;
     int priority;
 } acl_t;
+
+int
+range2mask(acl_port_range_masks_t *, acl_port_range_t);
 
 void
 usage(const char *prog)
@@ -91,7 +125,7 @@ _parse_ipv4addr(acl_ipv4_mask_t *mask, char **tok, const char *sep,
 
     mask->prefix = (octets[0] << 24) | (octets[1] << 16) | (octets[2] << 8)
         | (octets[3]);
-    mask->mask = ~((1ULL << (32 - prefixlen)) - 1);
+    mask->mask = ((1ULL << (32 - prefixlen)) - 1);
 
     *tok = NULL;
 
@@ -252,7 +286,6 @@ parse_line(acl_t *acl, char *buf, int lineno)
     }
 }
 
-void range2mask(acl_port_range_t);
 /*
  * Parse the specified ACL
  */
@@ -263,6 +296,17 @@ parse(FILE *fp)
     int lineno;
     acl_t acl;
     int ret;
+    acl_port_range_masks_t sports;
+    acl_port_range_masks_t dports;
+    int i;
+    int j;
+    int k;
+    acl_tcam_entry_t e;
+    acl_ipv4_entry_t *data;
+    acl_ipv4_entry_t *mask;
+    int flagc;
+    tcp_flag flagd[2];
+    tcp_flag flagm[2];
 
     lineno = 1;
     while ( NULL != fgets(buf, sizeof(buf), fp) ) {
@@ -271,42 +315,129 @@ parse(FILE *fp)
             fprintf(stderr, "Error at line %d\n", lineno);
             exit(EXIT_FAILURE);
         }
-        printf("%d: ", lineno);
-        range2mask(acl.sport);
-        range2mask(acl.dport);
+        /* Source and destination ports */
+        ret = range2mask(&sports, acl.sport);
+        if ( ret < 0 ) {
+            return -1;
+        }
+        ret = range2mask(&dports, acl.dport);
+        if ( ret < 0 ) {
+            return -1;
+        }
+        /* Flags */
+        memset(&flagd[0], 0, sizeof(tcp_flag));
+        memset(&flagm[0], 0xff, sizeof(tcp_flag));
+        memset(&flagd[1], 0, sizeof(tcp_flag));
+        memset(&flagm[1], 0xff, sizeof(tcp_flag));
+        if ( ACL_ESTABLISHED & acl.flags ) {
+            /* Syn */
+            flagc = 2;
+            flagd[0].ack = 1;
+            flagm[0].ack = 0;
+            flagd[1].rst = 1;
+            flagm[1].rst = 0;
+        } else {
+            flagc = 1;
+        }
+
+        /* Build TCAM */
+        for ( i = 0; i < sports.count; i++ ) {
+            for ( j = 0; j < sports.count; j++ ) {
+                for ( k = 0; k < flagc; k++ ) {
+                    memset(&e, 0xff, sizeof(acl_tcam_entry_t));
+                    data = (acl_ipv4_entry_t *)e.data;
+                    mask = (acl_ipv4_entry_t *)e.mask;
+                    switch ( acl.proto ) {
+                    case ACL_IP:
+                        data->proto = 0;
+                        mask->proto = 0xff;
+                        break;
+                    case ACL_ICMP:
+                        data->proto = 1;
+                        mask->proto = 0;
+                        break;
+                    case ACL_TCP:
+                        data->proto = 6;
+                        mask->proto = 0;
+                        break;
+                    case ACL_UDP:
+                        data->proto = 17;
+                        mask->proto = 0;
+                        break;
+                    }
+                    data->saddr = htonl(acl.saddr.ip4.prefix);
+                    mask->saddr = htonl(acl.saddr.ip4.mask);
+                    data->daddr = htonl(acl.daddr.ip4.prefix);
+                    mask->daddr = htonl(acl.daddr.ip4.mask);
+                    data->sport = htons(sports.data[i]);
+                    mask->sport = htons(sports.mask[i]);
+                    data->dport = htons(dports.data[j]);
+                    mask->dport = htons(dports.mask[j]);
+                    data->flags = *(uint16_t *)&flagd[k];
+                    mask->flags = *(uint16_t *)&flagm[k];
+
+                    printf("%d %d ", lineno, acl.action);
+                    int x;
+                    for ( x = 0; x < 16; x++ ) {
+                        printf("%02x", e.data[x]);
+                    }
+                    printf(" ");
+                    for ( x = 0; x < 16; x++ ) {
+                        printf("%02x", e.mask[x]);
+                    }
+                    printf("\n");
+                }
+            }
+        }
+        //printf("%d: ", lineno);
+        //printf("%x %x\n", sports.count, dports.count);
         lineno++;
     }
 
     return 0;
 }
 
-void
-range2mask_rec(acl_port_range_t range, uint16_t prefix, uint16_t mask, int b)
+int
+range2mask_rec(acl_port_range_masks_t *masks, acl_port_range_t range,
+               uint16_t prefix, uint16_t mask, int b)
 {
+    int ret;
 
     if ( prefix >= range.lb && (prefix | mask) <= range.ub ) {
-        printf(">>> %x %x\n", prefix, mask);
-        return;
+        if ( masks->count >= 32 ) {
+            return -1;
+        }
+        masks->data[masks->count] = prefix;
+        masks->mask[masks->count] = mask;
+        masks->count++;
+        return 0;
     } else if ( (prefix | mask) < range.lb || prefix > range.ub ) {
-        return;
+        return 0;
     } else {
         /* Partial */
     }
     if ( !mask ) {
         /* End of the recursion */
-        return;
+        return 0;
     }
 
     mask >>= 1;
     /* Left */
-    range2mask_rec(range, prefix, mask, b + 1);
+    ret = range2mask_rec(masks, range, prefix, mask, b + 1);
+    if ( ret < 0 ) {
+        return ret;
+    }
     /* Right */
     prefix |= (1 << (15 - b));
-    range2mask_rec(range, prefix, mask, b + 1);
+    ret = range2mask_rec(masks, range, prefix, mask, b + 1);
+    if ( ret < 0 ) {
+        return ret;
+    }
+    return 0;
 }
 
-void
-range2mask(acl_port_range_t range)
+int
+range2mask(acl_port_range_masks_t *masks, acl_port_range_t range)
 {
     int b;
     uint16_t x;
@@ -314,6 +445,7 @@ range2mask(acl_port_range_t range)
     uint16_t prefix;
     uint16_t mask;
 
+    masks->count = 0;
     for ( b = 0; b < 16; b++ ) {
         x = range.lb & (1 << (15 - b));
         y = range.ub & (1 << (15 - b));
@@ -325,7 +457,7 @@ range2mask(acl_port_range_t range)
     mask = (1 << (16 - b)) - 1;
     prefix = range.lb & ~mask;
 
-    range2mask_rec(range, prefix, mask, b);
+    return range2mask_rec(masks, range, prefix, mask, b);
 }
 
 /*
@@ -345,7 +477,7 @@ main(int argc, const char *const argv[])
     /* File name */
     fname = argv[1];
 
-    printf("Opening %s...\n", fname);
+    fprintf(stderr, "Opening %s...\n", fname);
     fp = fopen(fname, "r");
     if ( NULL == fp ) {
         usage(argv[0]);
