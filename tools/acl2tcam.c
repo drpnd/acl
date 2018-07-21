@@ -344,9 +344,10 @@ parse(FILE *fp)
         for ( i = 0; i < sports.count; i++ ) {
             for ( j = 0; j < sports.count; j++ ) {
                 for ( k = 0; k < flagc; k++ ) {
-                    memset(&e, 0xff, sizeof(acl_tcam_entry_t));
+                    memset(&e, 0x0, sizeof(acl_tcam_entry_t));
                     data = (acl_ipv4_entry_t *)e.data;
                     mask = (acl_ipv4_entry_t *)e.mask;
+                    memset(mask, 0xff, 16);
                     switch ( acl.proto ) {
                     case ACL_IP:
                         data->proto = 0;
