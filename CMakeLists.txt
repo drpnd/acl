@@ -41,6 +41,9 @@ set (acl_VERSION "current-${BUILD_DATETIME}")
 # acl2tcam
 add_executable(acl2tcam tools/acl2tcam.c)
 
+# traffic generator
+add_executable(tgen tools/tgen.c)
+
 # sourted list
 add_executable(test_acl_sl tests/sl.c sl/sl.c)
 
