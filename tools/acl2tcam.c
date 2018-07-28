@@ -377,7 +377,6 @@ parse(FILE *fp)
                     data->flags = *(uint16_t *)&flagd[k];
                     mask->flags = *(uint16_t *)&flagm[k];
 
-                    printf("%d %d ", lineno, acl.action);
                     int x;
                     for ( x = 0; x < 16; x++ ) {
                         printf("%02x", e.data[x]);
@@ -386,12 +385,12 @@ parse(FILE *fp)
                     for ( x = 0; x < 16; x++ ) {
                         printf("%02x", e.mask[x]);
                     }
+                    printf(" %d %d", lineno, acl.action);
                     printf("\n");
                 }
             }
         }
-        //printf("%d: ", lineno);
-        //printf("%x %x\n", sports.count, dports.count);
+
         lineno++;
     }
 
