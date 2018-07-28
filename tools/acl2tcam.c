@@ -197,7 +197,7 @@ parse_line(acl_t *acl, char *buf, int lineno)
         buf[strlen(buf) - 1] = '\0';
     }
 
-    acl->priority = (1 << 30) - lineno;
+    acl->priority = (1 << 20) - lineno;
 
     /* Action */
     action = strtok_r(buf, sep, &saveptr);
@@ -386,7 +386,7 @@ parse(FILE *fp)
                     for ( x = 0; x < 16; x++ ) {
                         printf("%02x", e.mask[x]);
                     }
-                    printf(" %d %d", lineno, acl.action);
+                    printf(" %d %d", acl.priority, acl.action);
                     printf("\n");
                 }
             }
