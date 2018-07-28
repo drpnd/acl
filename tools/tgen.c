@@ -93,7 +93,7 @@ tgen_run(tgen_t *tgen, int nr)
         sport = 5060;           /* SIP */
         dport = random();
         flags = 0x2;
-        printf("%02x %08x %08x %04x %04x %04x\n",
+        printf("%02x%08x%08x%04x%04x%04x00\n",
                proto, saddr, daddr, sport, dport, flags);
 
         tgen->u.ross.addr++;
