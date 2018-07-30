@@ -1086,20 +1086,3 @@ permit udp 0.0.0.0/0 eq 53 192.168.252.0/22          # DNS
 permit udp 0.0.0.0/0 eq 123 192.168.252.0/22         # NTP
 permit tcp 0.0.0.0/0 192.168.252.0/22 established    # ACK
 deny ip 0.0.0.0/0 192.168.252.0/22
-permit ip 192.168.256.0/22 0.0.0.0/0                 # Outbound
-permit icmp 0.0.0.0/0 192.168.256.0/22               # ICMP
-permit ip 0.0.0.0/0 192.168.256.0/27                 # DMZ
-permit udp 0.0.0.0/0 192.168.256.32/27 eq 53         # DNS
-permit tcp 0.0.0.0/0 192.168.256.32/27 eq 53         # DNS
-permit tcp 0.0.0.0/0 192.168.256.32/27 eq 80         # HTTP
-permit tcp 0.0.0.0/0 192.168.256.32/27 eq 443        # HTTPS
-permit udp 0.0.0.0/0 192.168.256.32/27 eq 443        # QUIC
-permit tcp 0.0.0.0/0 192.168.256.32/27 eq 25         # SMTP
-permit tcp 0.0.0.0/0 192.168.256.32/27 eq 110        # POP3
-permit tcp 0.0.0.0/0 192.168.256.32/27 eq 143        # IMAP
-permit tcp 0.0.0.0/0 192.168.256.32/27 eq 993        # IMAPS
-permit tcp 0.0.0.0/0 192.168.256.32/27 eq 995        # POP3S
-permit udp 0.0.0.0/0 eq 53 192.168.256.0/22          # DNS
-permit udp 0.0.0.0/0 eq 123 192.168.256.0/22         # NTP
-permit tcp 0.0.0.0/0 192.168.256.0/22 established    # ACK
-deny ip 0.0.0.0/0 192.168.256.0/22
