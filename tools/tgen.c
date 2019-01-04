@@ -90,8 +90,8 @@ tgen_run(tgen_t *tgen, int nr)
         saddr = random();
         daddr = tgen->u.ross.prefix
             + swap32(tgen->u.ross.addr << (tgen->u.ross.preflen));
-        sport = 5060;           /* SIP */
-        dport = random();
+        sport = random();
+        dport = 5060;           /* SIP */
         flags = 0x2;
         printf("%02x%08x%08x%04x%04x%04x00\n",
                proto, saddr, daddr, sport, dport, flags);
