@@ -43,6 +43,7 @@ add_executable(acl2tcam tools/acl2tcam.c)
 
 # traffic generator
 add_executable(tgen tools/tgen.c)
+add_executable(tgen2 tools/tgen2.c)
 
 # sourted list
 add_executable(test_acl_sl tests/sl.c sl/sl.c)

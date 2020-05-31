@@ -35,11 +35,26 @@ typedef enum {
 typedef enum {
     ACL_IP,
     ACL_ICMP,
+    ACL_IGMP,
+    ACL_GGP,
+    ACL_IPENCAP,
+    ACL_ST2,
+    ACL_CBT,
+    ACL_EGP,
+    ACL_IGP,
     ACL_TCP,
     ACL_UDP,
+    ACL_GRE,
+    ACL_EIGRP,
+    ACL_ESP,
+    ACL_AH,
+    ACL_OSPF,
+    ACL_TP,
 } acl_proto_t;
 
 #define ACL_ESTABLISHED     (1 << 0)
+#define ACL_ACK             (1 << 1)
+#define ACL_NOSYN           (1 << 2)
 
 typedef struct {
     uint16_t fin:1;
@@ -171,6 +186,21 @@ _parse_port(acl_port_range_t *range, char **tok, const char *sep,
         range->lb = port + 1;
         range->ub = 65535;
         *tok = NULL;
+    } else if ( 0 == strcasecmp(*tok, "ge") ) {
+        /* Port */
+        *tok = strtok_r(NULL, sep, saveptr);
+        port = atoi(*tok);
+        range->lb = port;
+        range->ub = 65535;
+        *tok = NULL;
+
+        *tok = strtok_r(NULL, sep, saveptr);
+        if ( 0 == strcasecmp(*tok, "le") ) {
+            *tok = strtok_r(NULL, sep, saveptr);
+            port = atoi(*tok);
+            range->ub = port;
+            *tok = NULL;
+        }
     } else {
         range->lb = 0;
         range->ub = 65535;
@@ -224,6 +254,32 @@ parse_line(acl_t *acl, char *buf, int lineno)
         acl->proto = ACL_UDP;
     } else if ( 0 == strcasecmp(proto, "icmp") ) {
         acl->proto = ACL_ICMP;
+    } else if ( 0 == strcasecmp(proto, "gre") ) {
+        acl->proto = ACL_GRE;
+    } else if ( 0 == strcasecmp(proto, "eigrp") ) {
+        acl->proto = ACL_EIGRP;
+    } else if ( 0 == strcasecmp(proto, "esp") ) {
+        acl->proto = ACL_ESP;
+    } else if ( 0 == strcasecmp(proto, "ah") ) {
+        acl->proto = ACL_AH;
+    } else if ( 0 == strcasecmp(proto, "ospf") ) {
+        acl->proto = ACL_OSPF;
+    } else if ( 0 == strcasecmp(proto, "tp++") ) {
+        acl->proto = ACL_TP;
+    } else if ( 0 == strcasecmp(proto, "igmp") ) {
+        acl->proto = ACL_IGMP;
+    } else if ( 0 == strcasecmp(proto, "ggp") ) {
+        acl->proto = ACL_GGP;
+    } else if ( 0 == strcasecmp(proto, "ipencap") ) {
+        acl->proto = ACL_IPENCAP;
+    } else if ( 0 == strcasecmp(proto, "st2") ) {
+        acl->proto = ACL_ST2;
+    } else if ( 0 == strcasecmp(proto, "cbt") ) {
+        acl->proto = ACL_CBT;
+    } else if ( 0 == strcasecmp(proto, "egp") ) {
+        acl->proto = ACL_EGP;
+    } else if ( 0 == strcasecmp(proto, "igp") ) {
+        acl->proto = ACL_IGP;
     } else {
         fprintf(stderr, "Unknown protocol: %s\n", proto);
         return -1;
@@ -262,6 +318,12 @@ parse_line(acl_t *acl, char *buf, int lineno)
     if ( NULL != tok ) {
         if ( 0 == strcasecmp(tok, "established") ) {
             acl->flags = ACL_ESTABLISHED;
+            tok = NULL;
+        } else if ( 0 == strcasecmp(tok, "ack") ) {
+            acl->flags = ACL_ACK;
+            tok = NULL;
+        } else if ( 0 == strcasecmp(tok, "nosyn") ) {
+            acl->flags = ACL_NOSYN;
             tok = NULL;
         } else if ( '#' == *tok )  {
             /* Comment */
@@ -337,6 +399,16 @@ parse(FILE *fp)
             flagm[0].ack = 0;
             flagd[1].rst = 1;
             flagm[1].rst = 0;
+        } else if ( ACL_ACK & acl.flags ) {
+            /* Ack */
+            flagc = 1;
+            flagd[0].ack = 1;
+            flagm[0].ack = 0;
+        } else if ( ACL_NOSYN & acl.flags ) {
+            /* No-syn */
+            flagc = 1;
+            flagd[0].syn = 0;
+            flagm[0].syn = 0;
         } else {
             flagc = 1;
         }
@@ -364,6 +436,58 @@ parse(FILE *fp)
                         break;
                     case ACL_UDP:
                         data->proto = 17;
+                        mask->proto = 0;
+                        break;
+                    case ACL_GRE:
+                        data->proto = 47;
+                        mask->proto = 0;
+                        break;
+                    case ACL_EIGRP:
+                        data->proto = 88;
+                        mask->proto = 0;
+                        break;
+                    case ACL_ESP:
+                        data->proto = 50;
+                        mask->proto = 0;
+                        break;
+                    case ACL_AH:
+                        data->proto = 51;
+                        mask->proto = 0;
+                        break;
+                    case ACL_OSPF:
+                        data->proto = 89;
+                        mask->proto = 0;
+                        break;
+                    case ACL_TP:
+                        data->proto = 39;
+                        mask->proto = 0;
+                        break;
+                    case ACL_IGMP:
+                        data->proto = 2;
+                        mask->proto = 0;
+                        break;
+                    case ACL_GGP:
+                        data->proto = 3;
+                        mask->proto = 0;
+                        break;
+                    case ACL_IPENCAP:
+                        data->proto = 4;
+                        mask->proto = 0;
+                        break;
+                    case ACL_ST2:
+                        data->proto = 5;
+                        mask->proto = 0;
+                        break;
+                    case ACL_CBT:
+                        data->proto = 7;
+                        mask->proto = 0;
+                        break;
+                    case ACL_EGP:
+                        data->proto = 8;
+                        mask->proto = 0;
+                        break;
+                    case ACL_IGP:
+                        data->proto = 9;
                         mask->proto = 0;
                         break;
                     }

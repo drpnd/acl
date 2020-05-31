@@ -1,5 +1,5 @@
 /*_
- * Copyright (c) 2018 Hirochika Asai <asai@jar.jp>
+ * Copyright (c) 2018-2019 Hirochika Asai <asai@jar.jp>
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -93,7 +93,7 @@ tgen_run(tgen_t *tgen, int nr)
         sport = random();
         dport = 5060;           /* SIP */
         flags = 0x2;
-        printf("%02x%08x%08x%04x%04x%04x00\n",
+        printf("%02x0000%08x%08x%04x%04x0000000000000000%04x00\n",
                proto, saddr, daddr, sport, dport, flags);
 
         tgen->u.ross.addr++;
