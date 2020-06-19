@@ -415,7 +415,7 @@ parse(FILE *fp)
 
         /* Build TCAM */
         for ( i = 0; i < sports.count; i++ ) {
-            for ( j = 0; j < sports.count; j++ ) {
+            for ( j = 0; j < dports.count; j++ ) {
                 for ( k = 0; k < flagc; k++ ) {
                     memset(&e, 0x0, sizeof(acl_tcam_entry_t));
                     data = (acl_ipv4_entry_t *)e.data;
